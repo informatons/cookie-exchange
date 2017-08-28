@@ -1,0 +1,189 @@
+<!doctype html>
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+-->
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes">
+  <script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+  <script src="../../web-component-tester/browser.js"></script>
+  <script src="../../iron-test-helpers/test-helpers.js"></script>
+  <script src="stub.js"></script>
+  <link rel="import" href="../cookie-exchange.html">
+</head>
+
+<body>
+  <test-fixture id="basic">
+    <template>
+      <cookie-exchange></cookie-exchange>
+    </template>
+  </test-fixture>
+  <script>
+  /* global fixture, assert */
+  const cookies = {
+    'domain.com': [{
+      name: 'domain.com-name',
+      value: 'domain.com-value'
+    }, {
+      name: 'other-name',
+      value: 'other-value'
+    }],
+    'different.com': [{
+      name: 'different-name',
+      value: 'different-value'
+    }]
+  };
+
+  suite('basic', function() {
+    var element;
+
+    setup(function() {
+      element = fixture('basic');
+    });
+
+    suite('_computeHost()', function() {
+      test('Computes empty value', function() {
+        var result = element._computeHost('');
+        assert.isUndefined(result);
+      });
+
+      test('Computes undefined value', function() {
+        var result = element._computeHost();
+        assert.isUndefined(result);
+      });
+
+      test('Computes invalid value', function() {
+        var result = element._computeHost('test');
+        assert.isUndefined(result);
+      });
+
+      test('Computes host name', function() {
+        var result = element._computeHost('http://domain.com/test');
+        assert.typeOf(result, 'string');
+      });
+    });
+
+    suite('_buildCookieString()', function() {
+      test('Empty string when no cookies', function() {
+        var result = element._buildCookieString([], 'domain.com');
+        assert.equal(result, '');
+      });
+
+      test('Empty string when non-matching domain', function() {
+        var result = element._buildCookieString(cookies, 'test.com');
+        assert.equal(result, '');
+      });
+
+      test('Empty string when host is empty', function() {
+        var result = element._buildCookieString(cookies, '');
+        assert.equal(result, '');
+      });
+
+      test('Cookie string for matched domain', function() {
+        var result = element._buildCookieString(cookies, 'different.com');
+        assert.equal(result, 'different-name=different-value');
+      });
+
+      test('Cookie string is concatenated', function() {
+        var result = element._buildCookieString(cookies, 'domain.com');
+        assert.equal(result, 'domain.com-name=domain.com-value; other-name=other-value');
+      });
+    });
+
+    suite('applyCookies()', function() {
+      test('Do not set headers property if no cookies found', function() {
+        element.cookies = cookies;
+        var result = element.applyCookies({
+          url: 'http://test.com'
+        });
+        assert.isUndefined(result.headers);
+      });
+
+      test('Do not change headers value if no cookies found', function() {
+        element.cookies = cookies;
+        var result = element.applyCookies({
+          url: 'http://test.com',
+          headers: 'x-test: x-value'
+        });
+        assert.equal(result.headers, 'x-test: x-value');
+      });
+
+      test('Applies cookies to the headers', function() {
+        element.cookies = cookies;
+        var result = element.applyCookies({
+          url: 'http://domain.com'
+        });
+        assert.equal(result.headers,
+          'cookie: domain.com-name=domain.com-value; other-name=other-value');
+      });
+
+      test('Appends cookies to the headers', function() {
+        element.cookies = cookies;
+        var result = element.applyCookies({
+          url: 'http://domain.com',
+          headers: 'cookie: x-test=x-value'
+        });
+        assert.equal(result.headers,
+          'cookie: x-test=x-value; domain.com-name=domain.com-value; other-name=other-value');
+      });
+    });
+
+    suite('before-request event', function() {
+      function fireEvent() {
+        var event = new CustomEvent('before-request', {
+          bubbles: true,
+          cancelable: true,
+          detail: {
+            url: 'http://domain.com',
+            headers: 'cookie: x-test=x-value'
+          }
+        });
+        document.body.dispatchEvent(event);
+        return event;
+      }
+      test('Handles before-request event', function() {
+        element.cookies = cookies;
+        var event = fireEvent();
+        assert.equal(event.detail.headers,
+          'cookie: x-test=x-value; domain.com-name=domain.com-value; other-name=other-value');
+      });
+    });
+  });
+
+  suite('Data exchange', function() {
+    var element;
+    const extensionId = 'abc123';
+
+    setup(function() {
+      element = fixture('basic');
+      element.$.sync.connect(extensionId);
+      element.connected = true;
+    });
+
+    test('Clears the cookies when disconnected', function() {
+      element.cookies = cookies;
+      element.connected = false;
+      assert.isUndefined(element.cookies);
+    });
+
+    test('Sets cookies from the extension', function() {
+      element.$.sync.port.onMessage.nofifyListeners({
+        payload: 'get-cookies',
+        cookies: 'TEST'
+      });
+      assert.equal(element.cookies, 'TEST');
+    });
+
+  });
+  </script>
+</body>
+
+</html>
