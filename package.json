@@ -1,6 +1,6 @@
 {
   "name": "cookie-exchange",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "Apache-2.0 OR CC-BY-4.0",
   "description": "Exchanges cookies insformation with ARC app using ARC extension",
   "devDependencies": {
